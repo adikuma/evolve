@@ -6,6 +6,14 @@ Then I started binding skills and slash commands manually to fix it. That worked
 
 So I was like, maybe Claude can watch itself and write this stuff.
 
+## Install
+
+```bash
+npm install -g @adikuma/evolve
+evolve setup
+```
+
+Then run `evolve` from any project directory.
 
 ## Commands
 
@@ -31,8 +39,8 @@ So I was like, maybe Claude can watch itself and write this stuff.
 | **Slash Command** | `.claude/commands/{name}.md` | Lightweight prompt template |
 | **Subagent** | `.claude/agents/{name}.md` | Specialized agent with its own personality |
 
-For full details on how everything works, see [DOCUMENTATION.md](docs/DOCUMENTATION.md).
+For full details on how everything works, see [DOCUMENTATION.md](docs/DOCUMENTATION.md). For diagrams and module structure, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Planned
 
-- **Claude Code Hooks** — Evolve runs automatically when you start and stop Claude sessions.
+- **Claude Code Hooks** - Evolve runs automatically when you start and stop Claude sessions.
