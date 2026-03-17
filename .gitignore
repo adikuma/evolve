@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+package-lock.json
+
+# build output
+dist/
+*.tsbuildinfo
+
+# environment
+.env
+
+# claude code session data
+.claude/
+
+# tests (kept local, not published)
+tests/
+
+# debug artifacts
+stderr.tmp
