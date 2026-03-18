@@ -76,7 +76,7 @@ export function createHeadlessObserver(options: HeadlessObserverOptions): Pipeli
         });
 
       process.stdout.write(JSON.stringify({
-        version: "0.1.0",
+        version: process.env.EVOLVE_VERSION || "unknown",
         timestamp: new Date().toISOString(),
         sessions_analyzed: summary.sessionsAnalyzed,
         patterns_found: summary.patternsDetected,

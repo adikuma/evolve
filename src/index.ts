@@ -1,4 +1,7 @@
 import { Command } from "commander";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { setupCommand } from "./commands/setup.js";
 import { runCommand } from "./commands/run.js";
 import { statusCommand } from "./commands/status.js";
@@ -6,12 +9,22 @@ import { insightsCommand } from "./commands/insights.jsx";
 import { discoverCommand } from "./commands/discover.js";
 import { memoryCommand } from "./commands/memory.js";
 
+const selfDir = dirname(fileURLToPath(import.meta.url));
+let version = "0.0.0";
+try {
+  const pkg = JSON.parse(readFileSync(join(selfDir, "..", "package.json"), "utf-8"));
+  version = pkg.version;
+} catch {
+  // fallback if package.json not found
+}
+process.env.EVOLVE_VERSION = version;
+
 const program = new Command();
 
 program
   .name("evolve")
   .description("self-improving developer toolkit for claude code")
-  .version("0.1.0");
+  .version(version);
 
 program
   .command("setup")

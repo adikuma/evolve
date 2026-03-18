@@ -1,6 +1,6 @@
 {
   "name": "@adikuma/evolve",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "self-improving developer toolkit for claude code",
   "type": "module",
   "bin": {
