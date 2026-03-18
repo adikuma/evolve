@@ -3,7 +3,7 @@ import { Box, Text, useInput, useApp } from "ink";
 import { theme, glyph } from "../theme.js";
 import type { EvolveConfig } from "../../utils/config.js";
 
-type SetupStep = "model" | "timeRange" | "integrationMode" | "skillsmpAsk" | "skillsmpKey" | "done";
+type SetupStep = "model" | "integrationMode" | "timeRange" | "cronFrequency" | "skillsmpAsk" | "skillsmpKey" | "done";
 
 interface SetupProps {
   onComplete: (config: Partial<EvolveConfig>) => Promise<void>;
@@ -24,7 +24,23 @@ const MODEL_OPTIONS: SelectOption<string>[] = [
 
 const INTEGRATION_OPTIONS: SelectOption<EvolveConfig["integrationMode"]>[] = [
   { label: "manual", value: "manual", hint: "run evolve yourself when you want (recommended)" },
-  { label: "cron", value: "cron", hint: "run full pipeline on a weekly schedule" },
+  { label: "cron", value: "cron", hint: "runs automatically on a schedule" },
+];
+
+interface CronOption {
+  label: string;
+  value: string;
+  hint: string;
+  schedule: string;
+  timeRange: string;
+}
+
+const CRON_OPTIONS: CronOption[] = [
+  { label: "every 2 minutes", value: "2m", hint: "for testing", schedule: "*/2 * * * *", timeRange: "5m" },
+  { label: "every 6 hours", value: "6h", hint: "4 times a day", schedule: "0 */6 * * *", timeRange: "6h" },
+  { label: "every 12 hours", value: "12h", hint: "twice a day", schedule: "0 */12 * * *", timeRange: "12h" },
+  { label: "daily at 23:00", value: "1d", hint: "once a day", schedule: "0 23 * * *", timeRange: "1d" },
+  { label: "weekly (Sundays)", value: "7d", hint: "once a week", schedule: "0 23 * * 0", timeRange: "7d" },
 ];
 
 // inline select component with consistent styling
@@ -130,6 +146,51 @@ function InlineTextInput({
   );
 }
 
+// cron frequency selector
+function CronSelect({
+  options,
+  onSelect,
+}: {
+  options: CronOption[];
+  onSelect: (option: CronOption) => void;
+}): React.ReactElement {
+  const [cursor, setCursor] = useState(0);
+
+  useInput((input, key) => {
+    if (key.upArrow || input === "k") {
+      setCursor((prev) => (prev > 0 ? prev - 1 : options.length - 1));
+      return;
+    }
+    if (key.downArrow || input === "j") {
+      setCursor((prev) => (prev < options.length - 1 ? prev + 1 : 0));
+      return;
+    }
+    if (key.return) {
+      onSelect(options[cursor]);
+      return;
+    }
+  });
+
+  return (
+    <Box flexDirection="column">
+      {options.map((opt, i) => {
+        const isFocused = i === cursor;
+        return (
+          <Box key={opt.value}>
+            <Text color={isFocused ? theme.accent : theme.dim}>
+              {isFocused ? "  \u203A " : "    "}
+            </Text>
+            <Text bold={isFocused} color={isFocused ? theme.fg : theme.dim}>
+              {opt.label}
+            </Text>
+            <Text color={theme.dim}> {glyph.arrow} {opt.hint}</Text>
+          </Box>
+        );
+      })}
+    </Box>
+  );
+}
+
 // summary display after setup completion
 function SetupSummary({
   model,
@@ -189,6 +250,7 @@ export function Setup({ onComplete, onExit }: SetupProps): React.ReactElement {
   const [step, setStep] = useState<SetupStep>("model");
   const [model, setModel] = useState("");
   const [timeRange, setTimeRange] = useState("");
+  const [schedule, setSchedule] = useState("");
   const [integrationMode, setIntegrationMode] = useState<EvolveConfig["integrationMode"]>("manual");
   const [skillsmpKey, setSkillsmpKey] = useState<string | undefined>();
   const [completing, setCompleting] = useState(false);
@@ -264,7 +326,7 @@ export function Setup({ onComplete, onExit }: SetupProps): React.ReactElement {
             options={MODEL_OPTIONS}
             onSelect={(value) => {
               setModel(value);
-              setStep("timeRange");
+              setStep("integrationMode");
             }}
           />
         </Box>
@@ -280,7 +342,7 @@ export function Setup({ onComplete, onExit }: SetupProps): React.ReactElement {
             placeholder="7d"
             onSubmit={(value) => {
               setTimeRange(value);
-              setStep("integrationMode");
+              setStep("skillsmpAsk");
             }}
             validate={(value) => {
               if (/^\d+[dhm]$/.test(value.trim()) || /^\d+$/.test(value.trim())) {
@@ -305,6 +367,27 @@ export function Setup({ onComplete, onExit }: SetupProps): React.ReactElement {
             options={INTEGRATION_OPTIONS}
             onSelect={(value) => {
               setIntegrationMode(value);
+              if (value === "cron") {
+                setStep("cronFrequency");
+              } else {
+                setStep("timeRange");
+              }
+            }}
+          />
+        </Box>
+      )}
+
+      {/* cron frequency */}
+      {step === "cronFrequency" && (
+        <Box flexDirection="column">
+          <Box paddingX={2} marginBottom={1}>
+            <Text bold color={theme.fg}>HOW OFTEN</Text>
+          </Box>
+          <CronSelect
+            options={CRON_OPTIONS}
+            onSelect={(option) => {
+              setSchedule(option.schedule);
+              setTimeRange(option.timeRange);
               setStep("skillsmpAsk");
             }}
           />
@@ -330,6 +413,7 @@ export function Setup({ onComplete, onExit }: SetupProps): React.ReactElement {
                   model,
                   timeRange,
                   integrationMode,
+                  ...(schedule ? { schedule } : {}),
                 });
               }
             }}
@@ -351,6 +435,7 @@ export function Setup({ onComplete, onExit }: SetupProps): React.ReactElement {
                 model,
                 timeRange,
                 integrationMode,
+                ...(schedule ? { schedule } : {}),
                 skillsmpApiKey: value,
               });
             }}

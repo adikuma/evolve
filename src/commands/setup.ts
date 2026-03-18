@@ -32,7 +32,7 @@ export async function setupCommand(): Promise<void> {
           const needsCron = config.integrationMode === "cron" || config.integrationMode === "both";
 
           if (needsCron) {
-            setupCron(log);
+            setupCron(log, config.schedule);
           }
 
           // validate skillsmp key if provided
@@ -54,7 +54,7 @@ export async function setupCommand(): Promise<void> {
 }
 
 // set up cron or windows scheduled task
-function getCronCommand(): string {
+function getCronCommand(): { command: string; logFile: string } {
   const h = homedir();
   const logFile = join(h, ".evolve", "logs", "cron.log");
   const entry = process.argv[1] ?? "";
@@ -62,35 +62,52 @@ function getCronCommand(): string {
     ? `node "${entry}" --skip-permissions`
     : "npx --yes @adikuma/evolve --skip-permissions";
 
-  if (process.platform === "win32") {
-    return `cmd /c "${base} >> "${logFile}" 2>&1"`;
-  }
-  return `${base} >> "${logFile}" 2>&1`;
+  return { command: base, logFile };
 }
 
-function setupCron(log: ReturnType<typeof createLogger>): { installed: boolean; command: string } {
-  const schedule = DEFAULT_CONFIG.schedule;
+function cronToSchtasks(schedule: string): string {
+  if (schedule.startsWith("*/")) {
+    const mins = parseInt(schedule.split(" ")[0].replace("*/", ""), 10);
+    return `/sc minute /mo ${mins}`;
+  }
+  if (schedule.includes("*/6")) return "/sc hourly /mo 6";
+  if (schedule.includes("*/12")) return "/sc hourly /mo 12";
+  if (schedule === "0 23 * * *") return "/sc daily /st 23:00";
+  if (schedule === "0 23 * * 0") return "/sc weekly /d SUN /st 23:00";
+  return "/sc weekly /d SUN /st 23:00";
+}
+
+function setupCron(log: ReturnType<typeof createLogger>, schedule: string): { installed: boolean; command: string } {
   const platform = process.platform;
-  const command = getCronCommand();
+  const { command, logFile } = getCronCommand();
 
   try {
     if (platform === "win32") {
+      const schtaskFreq = cronToSchtasks(schedule);
+      // on windows, create a batch file that wraps the command with logging
+      const { writeFileSync } = require("node:fs") as typeof import("node:fs");
+      const batPath = join(homedir(), ".evolve", "evolve-cron.bat");
+      const batContent = `@echo off\r\ncd /d "${homedir()}"\r\n${command} >> "${logFile}" 2>&1\r\n`;
+      writeFileSync(batPath, batContent);
+
       execSync(
-        `schtasks /create /tn "evolve-weekly" /tr "${command}" /sc weekly /d SUN /st 23:00 /f`,
+        `schtasks /create /tn "evolve-cron" /tr "${batPath}" ${schtaskFreq} /f`,
         { stdio: "pipe" },
       );
-      log.success("cron: scheduled task created (Sundays 23:00)");
-      log.step("task name", "evolve-weekly");
-      log.step("command", command);
+      log.success(`cron: scheduled task created (${schedule})`);
+      log.step("task name", "evolve-cron");
+      log.step("runs", command);
+      log.step("logs to", logFile);
       return { installed: true, command };
     } else {
       const existing = execSync("crontab -l 2>/dev/null || true", { encoding: "utf-8" });
-      const cronLine = `${schedule} ${command}`;
+      const cronLine = `${schedule} ${command} >> "${logFile}" 2>&1`;
       if (!existing.includes("evolve")) {
         const updated = existing.trimEnd() + "\n" + cronLine + "\n";
         execSync("crontab -", { input: updated, stdio: ["pipe", "pipe", "pipe"] });
         log.success(`cron: job added (${schedule})`);
-        log.step("command", command);
+        log.step("runs", command);
+        log.step("logs to", logFile);
         return { installed: true, command };
       }
       log.info("cron: job already exists, skipping");
